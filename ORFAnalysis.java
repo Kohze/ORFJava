@@ -20,12 +20,19 @@ import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.data.xy.DefaultXYDataset;
 import org.jfree.data.xy.XYDataset;
 
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.labels.PieSectionLabelGenerator;
+import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
+import org.jfree.chart.plot.PiePlot;
+import org.jfree.data.general.DefaultPieDataset;
+import org.jfree.data.general.PieDataset;
+
 public class ORFAnalysis {
   public static void main(String[] args) {
     SwingContainer mainDisplay = new SwingContainer();
     mainDisplay.startDisplay();
-    //ORFCollector one = new ORFCollector("genome.txt");
-    //one.ArrayList();
   }
 }
 
@@ -38,14 +45,15 @@ public class ORFAnalysis {
 **/
 class SwingContainer extends JFrame implements ActionListener {
   FlowLayout experimentLayout = new FlowLayout();
-  JTextArea textArea          = new JTextArea("Welcome to the Fasta Analyzer", 35, 95);
+  JTextArea textArea          = new JTextArea("Welcome to the Open Reading Frame Analyzer", 25, 95);
   JButton helpButton          = new JButton("help");
   JButton ntSequenceButton    = new JButton("Open Reading Frames");
   JButton summButton          = new JButton("Summary");
   JButton compButton          = new JButton("Composition");
-  JButton inputButton         = new JButton("Input");
+  JButton exportButton        = new JButton("Export");
   JFrame  frame               = new JFrame();
-  JScrollPane scroll          = new JScrollPane ( textArea );
+  JPanel  pieChartPanel       = new JPanel();
+  JScrollPane scroll          = new JScrollPane (textArea);
 
   private JFileChooser fileChooser;
   public void actionPerformed(ActionEvent e) {}
@@ -60,18 +68,14 @@ class SwingContainer extends JFrame implements ActionListener {
         ORFCollector reader = new ORFCollector(selectedFile.getAbsolutePath());
         reader.ArrayList();
 
-        inputButton.addActionListener(new ActionListener() {
+        exportButton.addActionListener(new ActionListener() {
           public void actionPerformed(ActionEvent e) {
-            File selectedFile;
-            int reply;
-                  fileChooser = new JFileChooser(".");
-                  reply = fileChooser.showSaveDialog(null);
-                  if (reply == JFileChooser.APPROVE_OPTION) {
-                          selectedFile = fileChooser.getSelectedFile();
-                          textArea.setText(selectedFile.getAbsolutePath());
-                          ORFCollector reader = new ORFCollector(selectedFile.getAbsolutePath());
-                          reader.ArrayList();
-          }
+            JFileChooser fileChooser = new JFileChooser(".");
+            int userSelection = fileChooser.showSaveDialog(frame);
+			if (userSelection == JFileChooser.APPROVE_OPTION) {
+  				File file = fileChooser.getSelectedFile();
+  				reader.exportCollection(file.getAbsolutePath());
+			}
           }
         });
                  
@@ -82,7 +86,7 @@ class SwingContainer extends JFrame implements ActionListener {
         });
 
         compButton.addActionListener(new ActionListener() {
-          public void actionPerformed(ActionEvent e) { 
+          public void actionPerformed(ActionEvent e) {
 
             String allSequencesVar = reader.getNTBasePairs();
             Map<Character,Integer> frequencies = new HashMap<>();
@@ -96,6 +100,8 @@ class SwingContainer extends JFrame implements ActionListener {
   		 	System.setOut(old_out);
   	  	  	String output = new String(pipeOut.toByteArray());
             textArea.setText(output);
+            showTextField(false);
+            showPieChart(true);
            }
         });
 
@@ -107,11 +113,15 @@ class SwingContainer extends JFrame implements ActionListener {
   		  	reader.printSorted();
   		  	System.setOut(old_out);
   	  	  	String output = new String(pipeOut.toByteArray());
+
+  	  	  	//adding and formatting dataset to textarea
             textArea.setText("");
             textArea.setLineWrap(true);
-            String formattedString = output.replaceAll("(.{120})", "$1\n");
+            String formattedString = output.replaceAll("(.{120})", "$1\n").replaceAll(",\\s", "");
             textArea.append(formattedString);
             textArea.setCaretPosition(0);
+            showTextField(true);
+            showPieChart(false);
           }
         });
 
@@ -126,35 +136,68 @@ class SwingContainer extends JFrame implements ActionListener {
             textArea.setText("");
             String formattedString = output.replaceAll("(.{120})", "$1\n");
             textArea.append(formattedString);
+            showTextField(true);
+            showPieChart(false);
           }
         });
 
-        JFrame  modal = new JFrame();
         XYDataset ds = createDataset();
+        PieDataset dataset = createPieDataset();
+        JFreeChart chart2 = ChartFactory.createPieChart("Nucleotide Distribution", dataset, true, true, false);
         JFreeChart chart = ChartFactory.createXYLineChart("Test Chart", "x", "y", ds, PlotOrientation.VERTICAL, true, true, false);
+        ChartPanel pieChart = new ChartPanel(chart2);
         ChartPanel cp = new ChartPanel(chart);
+    	scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
+
         frame.setLayout(experimentLayout);
-        frame.add(inputButton);
         frame.add(ntSequenceButton);
         frame.add(summButton);
         frame.add(compButton);
         frame.add(helpButton);
-        textArea.setEditable ( false ); // set textArea non-editable
-    	scroll.setVerticalScrollBarPolicy ( ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS );
-    	frame.add ( scroll );
-        textArea.setLineWrap(true);
-		textArea.setWrapStyleWord(true);
-        frame.setTitle("Fasta Analyzer");
+        frame.add(exportButton);
+        pieChartPanel.add(pieChart);
+        frame.add(pieChartPanel);
+    	frame.add(scroll);
+		frame.add(cp);
+        frame.setTitle("Open Reading Frame Analyzer");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1200, 800);
         frame.setVisible(true);
+
         textArea.setEditable(false);
-        frame.add(cp);
+        textArea.setLineWrap(true);
+		textArea.setWrapStyleWord(true);
+
+		pieChartPanel.setVisible(false);
       }
 }
 
-	private static XYDataset createDataset() {
+	private void showTextField(boolean show){
+		    scroll.setVisible(show);
+            frame.invalidate();
+			frame.validate();
+			frame.repaint();
+	}
 
+	private void showPieChart(boolean show){
+			pieChartPanel.setVisible(show);
+            frame.invalidate();
+			frame.validate();
+			frame.repaint();
+	}
+
+
+	private static PieDataset createPieDataset(){
+	    DefaultPieDataset dataset = new DefaultPieDataset();
+	    dataset.setValue("80-100", 120);
+	    dataset.setValue("60-79", 80);
+	    dataset.setValue("40-59", 20);
+	    dataset.setValue("20-39", 7);
+	    dataset.setValue("0-19", 3);
+	    return dataset;
+	}
+
+	private static XYDataset createDataset(){
         DefaultXYDataset ds = new DefaultXYDataset();
         double[][] data = { {0.1, 1, 0.3}, {1, 2, 3} };
         ds.addSeries("series1", data);
@@ -180,6 +223,7 @@ class OpenReadingFrame implements Comparable<OpenReadingFrame> {
     this.bpLength   = this.ntSequence.length();
   }
 
+  //methods to export properties  
   public String getSequence(){
     return this.ntSequence;
   }
@@ -192,12 +236,14 @@ class OpenReadingFrame implements Comparable<OpenReadingFrame> {
   	return this.bpEnd;
   }
 
-  public double round(double value, int places) {
-    if (places < 0) throw new IllegalArgumentException();
+  public Integer getBpLength(){
+  	return this.bpLength;
+  }
 
-    long factor = (long) Math.pow(10, places);
-    value = value * factor;
-    long tmp = Math.round(value);
+  public double round(double value, int decimals) {
+    double factor = (double) Math.pow(10, decimals);
+    value *= factor;
+    double tmp = Math.round(value);
     return (double) tmp / factor;
   }
 
@@ -211,15 +257,15 @@ class OpenReadingFrame implements Comparable<OpenReadingFrame> {
   	return round(gcCounter*100/ (double) bpLength, 1);
   }
 
+  //comparable method to sort the sequences by length
   public int compareTo(OpenReadingFrame other){
     return this.bpLength.compareTo(other.bpLength);
   }
 
   @Override
   public String toString() {
-     return new StringBuffer("Sequence: ")
-    .append(this.ntSequence)
-    .append("\n > Length: ")
+     return new StringBuffer(this.ntSequence)
+    .append("\n> Length: ")
     .append(this.bpLength + "bp  |  GC content: " + getGCPercentage() +"%")
     .append("  |  Start Position: " + getBpStart() +  "bp  |  End Position: " + getBpEnd() + "bp\n\n").toString();
   }
@@ -233,10 +279,7 @@ class OpenReadingFrame implements Comparable<OpenReadingFrame> {
 *Methods    : getSeq(); getHeader();
 **/
 class ORFCollector {
-    String path; 
-    String header;
-    String aaSeq;
-    String ntSequenceString;
+    String path, header, aaSeq, ntSequenceString,line;
     int    lengthSum;
     ArrayList<OpenReadingFrame> ORFCollection = new ArrayList<OpenReadingFrame>();
 
@@ -251,12 +294,11 @@ class ORFCollector {
         BufferedReader reader = new BufferedReader(fileReader);
         
         ArrayList<OpenReadingFrame> ORFCollection = new ArrayList<OpenReadingFrame>();
-        String line = reader.readLine();
-        header = line;
         StringBuilder aaSeq = new StringBuilder();
         while ((line = reader.readLine()) != null) aaSeq.append(line); 
         ntSequenceString = aaSeq.toString();
         this.lengthSum += ntSequenceString.length();
+
         //reg expression for ORF region matching: starts with ATG, then looks for multiple of 3 until end codon.
         Pattern checkRegex = Pattern.compile("ATG(?:[ATGC]{3}){20,200}?(?:TAA|TAG|TGA)");
 		Matcher regexMatcher = checkRegex.matcher(ntSequenceString);
@@ -277,6 +319,37 @@ class ORFCollector {
     public void printSorted(){
       Collections.sort(ORFCollection);
       System.out.println(ORFCollection);
+    }
+
+    public void exportCollection(String path){
+    	try{
+    		PrintWriter csvWriter = new PrintWriter(new File(path));
+    		StringBuilder sb = new StringBuilder();
+
+    		//header column
+    		sb.append("sequence,length,start,end,GCcontent\n");
+  			
+  			//data columns
+    		for(OpenReadingFrame o : this.ORFCollection){
+    			sb.append(o.getSequence());
+    			sb.append(',');
+    			sb.append(o.getBpLength());
+    			sb.append(',');
+    			sb.append(o.getBpStart());
+    			sb.append(',');
+    			sb.append(o.getBpEnd());
+    			sb.append(',');
+    			sb.append(o.getGCPercentage());
+    			sb.append('\n');
+    		}
+
+    		csvWriter.write(sb.toString());
+    		csvWriter.close();
+   	  } catch (FileNotFoundException e){
+          e.printStackTrace();
+      } catch (IOException e){
+          e.printStackTrace();
+      }
     }
 
     public String getNTBasePairs(){
