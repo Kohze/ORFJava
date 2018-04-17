@@ -1,10 +1,3 @@
-/**
-*@author Robin Kohze
-*@version 0.1 15-04-2018
-*Email  : Robin@Kohze.com
-*Input  : On start it expects choosing a fasta file. 
-**/
-
 import java.util.*;
 import java.util.regex.*;
 import java.io.*;
@@ -17,8 +10,6 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import javax.swing.ImageIcon;
 
-import org.jfree.chart.plot.PlotOrientation;
-import org.jfree.chart.plot.XYPlot;
 import org.jfree.data.xy.XYDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
@@ -31,29 +22,38 @@ import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
 import org.jfree.chart.plot.PiePlot;
 import org.jfree.data.general.DefaultPieDataset;
 import org.jfree.data.general.PieDataset;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.XYPlot;
 
-
+/**
+*The ORFAnalysis tool. It takes a given .txt file as input and calculates all theoretically possible ORFs.
+*@author Robin Kohze
+*@version 0.11 17-04-2018
+*Repository: https://github.com/Kohze/ORFJava
+*Email  : Robin@Kohze.com
+**/
 public class ORFAnalysis {
   public static void main(String[] args) {
-    SwingContainer mainDisplay = new SwingContainer();
+    UIContainer mainDisplay = new UIContainer();
     mainDisplay.startDisplay();
   }
 }
 
 /**
-*class SwingContainer
+*class UIContainer
+*@author Robin Kohze
 *Description: The GUI output that displays all fasta stats. 
 *Returns    : Graphical output and asks for a fasta file as input. 
 *Properties : none.
-*Methods    : startDisplay();
-**/
-class SwingContainer extends JFrame implements ActionListener {
+*Methods    : startDisplay(); showtextAreaAllSeq(); showtextAreaSummary(); showPieChart(); showBarChart();
+*/
+class UIContainer extends JFrame implements ActionListener {
   FlowLayout experimentLayout = new FlowLayout();
   JTextArea textAreaAllSeq    = new JTextArea("", 42, 95);
   JTextArea textAreaSummary   = new JTextArea("", 20, 41); 
   JTextArea textArea   		  = new JTextArea("", 16, 34);
   JButton helpButton          = new JButton("help");
-  JButton ntSequenceButton    = new JButton("Open Reading Frames");
+  JButton fullSequenceTab     = new JButton("Open Reading Frames");
   JButton summButton          = new JButton("Summary");
   JButton compButton          = new JButton("Composition");
   JButton exportButton        = new JButton("Export");
@@ -75,15 +75,16 @@ class SwingContainer extends JFrame implements ActionListener {
       if (reply == JFileChooser.APPROVE_OPTION) {
         selectedFile = fileChooser.getSelectedFile();
         ORFCollector reader = new ORFCollector(selectedFile.getAbsolutePath(), 10, 100);
-        reader.ArrayList();
+        reader.getORFArray();
 
+        //The action listeners of all buttons
         exportButton.addActionListener(new ActionListener() {
           public void actionPerformed(ActionEvent e) {
             JFileChooser fileChooser = new JFileChooser(".");
             int userSelection = fileChooser.showSaveDialog(frame);
 			if (userSelection == JFileChooser.APPROVE_OPTION) {
   				File file = fileChooser.getSelectedFile();
-  				reader.exportCollection(file.getAbsolutePath());
+  				reader.exportORFCollection(file.getAbsolutePath());
 			}
           }
         });
@@ -116,7 +117,7 @@ class SwingContainer extends JFrame implements ActionListener {
            }
         });
 
-        ntSequenceButton.addActionListener(new ActionListener() {
+        fullSequenceTab.addActionListener(new ActionListener() {
           public void actionPerformed(ActionEvent e) {
             ByteArrayOutputStream pipeOut = new ByteArrayOutputStream();
   	  	  	PrintStream old_out = System.out;
@@ -143,7 +144,7 @@ class SwingContainer extends JFrame implements ActionListener {
             ByteArrayOutputStream pipeOut = new ByteArrayOutputStream();
   	  	  	PrintStream old_out = System.out;
   	  	  	System.setOut(new PrintStream(pipeOut));
-  	  	  	reader.getStats();
+  	  	  	reader.getORFStatistics();
   	  	  	System.setOut(old_out);
   	  	  	String output = new String(pipeOut.toByteArray());
             textAreaSummary.setText("");
@@ -157,18 +158,18 @@ class SwingContainer extends JFrame implements ActionListener {
           }
         });
 
-        XYSeriesCollection scatterDataset  = new XYSeriesCollection();
-        XYSeries seriesORF = new XYSeries("Open Reading Frames");
-      	DefaultPieDataset PieDataset       = new DefaultPieDataset();
-	    String allSequencesVar             = reader.getNTBasePairs();
+        //initializing Charts
+        XYSeriesCollection scatterDataset = new XYSeriesCollection();
+        XYSeries seriesORF                = new XYSeries("Open Reading Frames");
+      	DefaultPieDataset PieDataset      = new DefaultPieDataset();
+      	PieDataset sourcePieDataset       = PieDataset;
+	    String allSequencesVar            = reader.returnBasePairs();
 
+	    //Recalling Chart data from OpenReadingFrame Object Collections and transforming it to chart relevant formatting.
 	    for(OpenReadingFrame entry : reader.returnORFCollection()) seriesORF.add(entry.getGCPercentage(), entry.getBpLength());
-	    
 	    scatterDataset.addSeries(seriesORF);
-
         Map<Character,Integer> frequencies = new HashMap<>();
         for (char ch : allSequencesVar.toCharArray()) frequencies.put(ch, frequencies.getOrDefault(ch, 0) + 1);
-
   		for (Map.Entry entry : frequencies.entrySet()) {
   			ByteArrayOutputStream pipeOut = new ByteArrayOutputStream();
   	  	  	PrintStream old_out = System.out;
@@ -179,35 +180,35 @@ class SwingContainer extends JFrame implements ActionListener {
   			PieDataset.setValue("" + entry.getKey(), Double.parseDouble(output));
   		}
 
-  		PieDataset sourcePieDataset = PieDataset;
 
+  		//Calling Chart creator functions "ChartFactories"
   		JFreeChart chart = ChartFactory.createScatterPlot("Open Reading Frame Overview", 
         												  "GC content [in %]", "ORF Length [in bp]", scatterDataset, 
         												  PlotOrientation.VERTICAL, 
         												  true, true, false);
 
-        JFreeChart chart2 = ChartFactory.createPieChart("Nucleotide Distribution", 
+        JFreeChart piePlot = ChartFactory.createPieChart("Nucleotide Distribution", 
         												sourcePieDataset, 
         												true, true, false);
 
-        PiePlot newPieChart    = (PiePlot) chart2.getPlot();
+        //integrating data into charts and setting label meta data
+        PiePlot newPieChart    = (PiePlot) piePlot.getPlot();
         XYPlot newScatterChart = (XYPlot)  chart.getPlot();
         newPieChart.setCircular(true);
         newPieChart.setLabelGap(0.02);
         newPieChart.setSimpleLabels(true);
         PieSectionLabelGenerator gen = new StandardPieSectionLabelGenerator("{0}: {1}");
         newPieChart.setLabelGenerator(gen);
-        ChartPanel pieChart = new ChartPanel(chart2);
+        ChartPanel pieChart = new ChartPanel(piePlot);
         ChartPanel barChart = new ChartPanel(chart);
 
     	//Generating the UI with individual
         frame.setLayout(experimentLayout);
-        frame.add(ntSequenceButton);
+        frame.add(fullSequenceTab);
         frame.add(summButton);
         frame.add(compButton);
         frame.add(helpButton);
         frame.add(exportButton);
-
         frame.add(barChartPanel);
         frame.add(pieChartPanel);
     	frame.add(scroll);
@@ -231,7 +232,9 @@ class SwingContainer extends JFrame implements ActionListener {
 		pieChartPanel.setVisible(false);
       }
 }
-	//functions to control elements shown in view
+	/** functions to control elements shown in view
+	*	@param show A boolean to indicate whether to show or hide component
+	*/
 	private void showtextAreaAllSeq(boolean show){
 		    scroll.setVisible(show);
 		    logoLabel.setVisible(false);
@@ -239,7 +242,7 @@ class SwingContainer extends JFrame implements ActionListener {
 			frame.validate();
 			frame.repaint();
 	}
-
+	//@see showtextAreaAllSeq()
 	private void showtextAreaSummary(boolean show){
 		    textAreaSummary.setVisible(show);
             frame.invalidate();
@@ -247,6 +250,7 @@ class SwingContainer extends JFrame implements ActionListener {
 			frame.repaint();
 	}
 
+	//@see showtextAreaAllSeq
 	private void showPieChart(boolean show){
 			pieChartPanel.setVisible(show);
 			logoLabel.setVisible(false);
@@ -255,21 +259,23 @@ class SwingContainer extends JFrame implements ActionListener {
 			frame.repaint();
 	}
 
+	//@see showtextAreaAllSeq
 	private void showBarChart(boolean show){
 			barChartPanel.setVisible(show);
             frame.invalidate();
 			frame.validate();
 			frame.repaint();
 	}
-
 }
 
 /**
-*Sequence Class
-*Description: General class to fasta sequence properties. 
-*Properties : header, sequence.
-*Methods    : getSeq(); getHeader();
-**/
+*OpenReadingFrame Class
+*@author Robin Kohze
+*Description: class that holds the OpenReadingFrame properties and sequences
+*Properties : ntSequence, bpstart, bpEnd.
+*Methods    : getSequence(); getBpStart(); getBpEnd(); getBpLength(); round(double, int); getGCPercentage(); 
+*			  compareTo(); toString();
+*/
 class OpenReadingFrame implements Comparable<OpenReadingFrame> {
 
   String ntSequence;
@@ -333,14 +339,15 @@ class OpenReadingFrame implements Comparable<OpenReadingFrame> {
 } 
 
 /**
-*Sequence FastaReader
-*Description: Reads fasta sequence with path input and assigns it to Array 
-*Returns    : Prints all sequences alphabetically sorted. 
-*Properties : header, sequence.
-*Methods    : getSeq(); getHeader();
-**/
+*Sequence ORFCollector
+*@author Robin Kohze
+*Description: Reads sequence containing .txt file with path input and assigns it to an ArrayList 
+*Properties : path, minORFLength,maxORFLength
+*Methods    : getORFArray(); getORFStatistics(); returnORFCollection(); returnBasePairs(); exportORFCollection();
+*			  printSorted();
+*/
 class ORFCollector {
-    String path, header, aaSeq, ntSequenceString, line, regexPattern;
+    String path, header, aaSeq, fullSequence, line, regexPattern;
     int    lengthSum, minORFLength, maxORFLength;
     ArrayList<OpenReadingFrame> ORFCollection = new ArrayList<OpenReadingFrame>();
 
@@ -349,24 +356,26 @@ class ORFCollector {
         this.regexPattern = "ATG(?:[ATGC]{3}){" + minORFLength +","+ maxORFLength + "}?(?:TAA|TAG|TGA)";
     }
     
-     void ArrayList(){
+     public void getORFArray(){
       try{
         File file = new File(path);
         FileReader fileReader = new FileReader(file);
         BufferedReader reader = new BufferedReader(fileReader);
-        
         ArrayList<OpenReadingFrame> ORFCollection = new ArrayList<OpenReadingFrame>();
+
+        //Line wise reading of sequence data
         StringBuilder aaSeq = new StringBuilder();
         while ((line = reader.readLine()) != null) aaSeq.append(line); 
-        ntSequenceString = aaSeq.toString();
-        this.lengthSum += ntSequenceString.length();
+        fullSequence = aaSeq.toString();
+        this.lengthSum += fullSequence.length();
 
         //regExpression for the ORF region matching.
         Pattern checkRegex = Pattern.compile(regexPattern);
-		Matcher regexMatcher = checkRegex.matcher(ntSequenceString);
+		Matcher regexMatcher = checkRegex.matcher(fullSequence);
 		while (regexMatcher.find()){
 			if (regexMatcher.group().length() != 0){
 				OpenReadingFrame ORFobject  = new OpenReadingFrame(regexMatcher.group(), regexMatcher.start(), regexMatcher.end());
+				//adding Open Reading Frame objects to arrayList "ORFCollection"
 				ORFCollection.add(ORFobject);
 			}
 		}
@@ -378,6 +387,7 @@ class ORFCollector {
       }
     }
 
+    //functions to return the ORFCollector properties
     public void printSorted(){
       Collections.sort(ORFCollection);
       System.out.print(ORFCollection);
@@ -387,7 +397,30 @@ class ORFCollector {
     	return this.ORFCollection;
     }
 
-    public void exportCollection(String path){
+    public String returnBasePairs(){
+      return fullSequence;
+    }
+
+    //Getting overall statistics of the ORFCollection ArrayList
+    public void getORFStatistics(){
+      System.out.println("Open Reading Frame Summary");
+      System.out.print("Total Number of Open Reading Frames: ");
+      System.out.println(ORFCollection.size());
+      System.out.println();
+      System.out.println("Longest Open Reading Frame: ");
+      System.out.println(Collections.max(ORFCollection));
+      System.out.println();
+      System.out.println("Shortest Open Reading Frame: ");
+      System.out.println(Collections.min(ORFCollection));
+      System.out.println();
+      System.out.println("Average Open Reading Frame Length: ");
+      System.out.println(lengthSum/ORFCollection.size() + "bp");
+    }
+
+    /*export function that creates .csv file
+    *@param path A output path the .csv file is written to.
+	**/
+    public void exportORFCollection(String path){
     	try{
     		PrintWriter csvWriter = new PrintWriter(new File(path));
     		StringBuilder sb = new StringBuilder();
@@ -414,24 +447,5 @@ class ORFCollector {
    	  } catch (FileNotFoundException e){
           e.printStackTrace();
       } 
-    }
-
-    public String getNTBasePairs(){
-      return ntSequenceString;
-    }
-
-    void getStats(){
-      System.out.println("Open Reading Frame Summary");
-      System.out.print("Total Number of Open Reading Frames: ");
-      System.out.println(ORFCollection.size());
-      System.out.println();
-      System.out.println("Longest Open Reading Frame: ");
-      System.out.println(Collections.max(ORFCollection));
-      System.out.println();
-      System.out.println("Shortest Open Reading Frame: ");
-      System.out.println(Collections.min(ORFCollection));
-      System.out.println();
-      System.out.println("Average Open Reading Frame Length: ");
-      System.out.println(lengthSum/ORFCollection.size() + "bp");
     }
 }
