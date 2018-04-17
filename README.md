@@ -1,37 +1,24 @@
-# ORFJava
+# ORFAnalysis: An open reading frame viewer 
 
-A Java based project to identify genomwide all Open Reading Frames and expressing their stats. 
+A Java based project to identify all theoretically possible Open Reading Frames and expressing their stats. 
 
-Java Projekt: An open reading frame viewer 
+### Includes the following techniques
+	- File I/O
+	- Object Oriented Programming
+	- ArrayList of Objects
+	- Graphical user interfaces with Swing and JFreeChart
+	- Sorting with costume functions
+	- Regular Expression based filtering
 
-Input
-sequence file or web API -  long array of nucleotide sequence
+### Requirements: 
+	- JFreeChart package
 
-Interface
- - Sorting of ORF
- - Filtering of ORF
- - Show summary stats
- - GC/AT content
- - length
- - Epigenomic factors?
- - Promotors
- - Region specificity?
- - Select genome & species
-Classes
+### Overview:
 
-Interface
- - starts interface
- - asks for input file
-     
-ORFCollection
- - arrayList
- - searches through genome and creates arrayList of OpenReadingFrame objects
- - calls sorting
- - calls filtering
-     
-OpenReadingFrame
- - hasSequence
- - has length	
- - has GC/AT
- - has epigenetic factors
- - has genetic region / bp number
+![alt text](screenshots/filename.png "Powerpoint Slide 1")
+![alt text](screenshots/filename.png "Powerpoint Slide 2")
+![alt text](screenshots/filename.png "Powerpoint Slide 3")
+![alt text](screenshots/filename.png "Powerpoint Slide 4")
+
+
+
