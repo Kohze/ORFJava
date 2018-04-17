@@ -9,6 +9,7 @@ import java.util.*;
 import java.util.regex.*;
 import java.io.*;
 import java.awt.*;
+import java.lang.*;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -28,6 +29,7 @@ import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
 import org.jfree.chart.plot.PiePlot;
 import org.jfree.data.general.DefaultPieDataset;
 import org.jfree.data.general.PieDataset;
+
 
 public class ORFAnalysis {
   public static void main(String[] args) {
@@ -65,7 +67,7 @@ class SwingContainer extends JFrame implements ActionListener {
       reply = fileChooser.showSaveDialog(null);
       if (reply == JFileChooser.APPROVE_OPTION) {
         selectedFile = fileChooser.getSelectedFile();
-        ORFCollector reader = new ORFCollector(selectedFile.getAbsolutePath());
+        ORFCollector reader = new ORFCollector(selectedFile.getAbsolutePath(), 10, 100);
         reader.ArrayList();
 
         exportButton.addActionListener(new ActionListener() {
@@ -87,19 +89,6 @@ class SwingContainer extends JFrame implements ActionListener {
 
         compButton.addActionListener(new ActionListener() {
           public void actionPerformed(ActionEvent e) {
-
-            String allSequencesVar = reader.getNTBasePairs();
-            Map<Character,Integer> frequencies = new HashMap<>();
-            for (char ch : allSequencesVar.toCharArray()) frequencies.put(ch, frequencies.getOrDefault(ch, 0) + 1);
-            
-  		  	ByteArrayOutputStream pipeOut = new ByteArrayOutputStream();
-  	  	  	PrintStream old_out = System.out;
-  	  	  	System.setOut(new PrintStream(pipeOut));
-  		   	for (Map.Entry entry : frequencies.entrySet()) System.out.println(entry.getKey() + ", " + entry.getValue());
-  
-  		 	System.setOut(old_out);
-  	  	  	String output = new String(pipeOut.toByteArray());
-            textArea.setText(output);
             showTextField(false);
             showPieChart(true);
            }
@@ -142,9 +131,38 @@ class SwingContainer extends JFrame implements ActionListener {
         });
 
         XYDataset ds = createDataset();
-        PieDataset dataset = createPieDataset();
-        JFreeChart chart2 = ChartFactory.createPieChart("Nucleotide Distribution", dataset, true, true, false);
-        JFreeChart chart = ChartFactory.createXYLineChart("Test Chart", "x", "y", ds, PlotOrientation.VERTICAL, true, true, false);
+      	DefaultPieDataset dataset = new DefaultPieDataset();
+	    String allSequencesVar = reader.getNTBasePairs();
+        Map<Character,Integer> frequencies = new HashMap<>();
+        for (char ch : allSequencesVar.toCharArray()) frequencies.put(ch, frequencies.getOrDefault(ch, 0) + 1);
+
+        String keyOfMap; 
+
+  		for (Map.Entry entry : frequencies.entrySet()) {
+  			ByteArrayOutputStream pipeOut = new ByteArrayOutputStream();
+  	  	  	PrintStream old_out = System.out;
+  	  	  	System.setOut(new PrintStream(pipeOut));
+  	  	  	System.out.println(entry.getValue());
+  	  	  	System.setOut(old_out);
+  	  	  	String output = new String(pipeOut.toByteArray());
+  			dataset.setValue("" + entry.getKey(), Double.parseDouble(output));
+  		}
+ 
+  		PieDataset sourceDataset = dataset; 
+
+        JFreeChart chart2 = ChartFactory.createPieChart("Nucleotide Distribution", 
+        												sourceDataset, 
+        												true, true, false);
+        JFreeChart chart = ChartFactory.createXYLineChart("Test Chart", 
+        												  "x", "y", ds, 
+        												  PlotOrientation.VERTICAL, 
+        												  true, true, false);
+        PiePlot newPieChart = (PiePlot) chart2.getPlot();
+        newPieChart.setCircular(true);
+        newPieChart.setLabelGap(0.02);
+        newPieChart.setSimpleLabels(true);
+        PieSectionLabelGenerator gen = new StandardPieSectionLabelGenerator("{0}: {1}");
+        newPieChart.setLabelGenerator(gen);
         ChartPanel pieChart = new ChartPanel(chart2);
         ChartPanel cp = new ChartPanel(chart);
     	scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
@@ -187,15 +205,6 @@ class SwingContainer extends JFrame implements ActionListener {
 	}
 
 
-	private static PieDataset createPieDataset(){
-	    DefaultPieDataset dataset = new DefaultPieDataset();
-	    dataset.setValue("80-100", 120);
-	    dataset.setValue("60-79", 80);
-	    dataset.setValue("40-59", 20);
-	    dataset.setValue("20-39", 7);
-	    dataset.setValue("0-19", 3);
-	    return dataset;
-	}
 
 	private static XYDataset createDataset(){
         DefaultXYDataset ds = new DefaultXYDataset();
@@ -279,12 +288,13 @@ class OpenReadingFrame implements Comparable<OpenReadingFrame> {
 *Methods    : getSeq(); getHeader();
 **/
 class ORFCollector {
-    String path, header, aaSeq, ntSequenceString,line;
-    int    lengthSum;
+    String path, header, aaSeq, ntSequenceString, line, regexPattern;
+    int    lengthSum, minORFLength, maxORFLength;
     ArrayList<OpenReadingFrame> ORFCollection = new ArrayList<OpenReadingFrame>();
 
-    ORFCollector(String path) {
+    ORFCollector(String path, Integer minORFLength, Integer maxORFLength) {
         this.path = path;
+        this.regexPattern = "ATG(?:[ATGC]{3}){" + minORFLength +","+ maxORFLength + "}?(?:TAA|TAG|TGA)";
     }
     
      void ArrayList(){
@@ -299,8 +309,8 @@ class ORFCollector {
         ntSequenceString = aaSeq.toString();
         this.lengthSum += ntSequenceString.length();
 
-        //reg expression for ORF region matching: starts with ATG, then looks for multiple of 3 until end codon.
-        Pattern checkRegex = Pattern.compile("ATG(?:[ATGC]{3}){20,200}?(?:TAA|TAG|TGA)");
+        //regExpression for the ORF region matching.
+        Pattern checkRegex = Pattern.compile(regexPattern);
 		Matcher regexMatcher = checkRegex.matcher(ntSequenceString);
 		while (regexMatcher.find()){
 			if (regexMatcher.group().length() != 0){
@@ -318,37 +328,38 @@ class ORFCollector {
 
     public void printSorted(){
       Collections.sort(ORFCollection);
-      System.out.println(ORFCollection);
     }
 
     public void exportCollection(String path){
-    	try{
-    		PrintWriter csvWriter = new PrintWriter(new File(path));
-    		StringBuilder sb = new StringBuilder();
+    	if(this.ORFCollection.size() < 2){
+	    	try{
+	    		PrintWriter csvWriter = new PrintWriter(new File(path));
+	    		StringBuilder sb = new StringBuilder();
 
-    		//header column
-    		sb.append("sequence,length,start,end,GCcontent\n");
-  			
-  			//data columns
-    		for(OpenReadingFrame o : this.ORFCollection){
-    			sb.append(o.getSequence());
-    			sb.append(',');
-    			sb.append(o.getBpLength());
-    			sb.append(',');
-    			sb.append(o.getBpStart());
-    			sb.append(',');
-    			sb.append(o.getBpEnd());
-    			sb.append(',');
-    			sb.append(o.getGCPercentage());
-    			sb.append('\n');
-    		}
+	    		//header column
+	    		sb.append("sequence,length,start,end,GCcontent\n");
+	  			
+	  			//data columns
+	    		for(OpenReadingFrame o : this.ORFCollection){
+	    			sb.append(o.getSequence());
+	    			sb.append(',');
+	    			sb.append(o.getBpLength());
+	    			sb.append(',');
+	    			sb.append(o.getBpStart());
+	    			sb.append(',');
+	    			sb.append(o.getBpEnd());
+	    			sb.append(',');
+	    			sb.append(o.getGCPercentage());
+	    			sb.append('\n');
+	    		}
 
-    		csvWriter.write(sb.toString());
-    		csvWriter.close();
-   	  } catch (FileNotFoundException e){
-          e.printStackTrace();
-      } catch (IOException e){
-          e.printStackTrace();
+	    		csvWriter.write(sb.toString());
+	    		csvWriter.close();
+	   	  } catch (FileNotFoundException e){
+	          e.printStackTrace();
+	      } 
+      } else {
+      	System.out.println(".csv file was not written: Less than 2 ORF regions detected.");
       }
     }
 
