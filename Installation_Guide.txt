@@ -1,0 +1,10 @@
+ORFAnalysis: An open reading frame viewer:
+
+installation:
+1) download JFreeChart and add it to the lib folder within the sdk/sre
+2) javac ORFAnalysis.java && java ORFAnalysis
+3) Select genome.txt or genome_short.txt from the folder when it asks for a file.
+
+More Infos and Updates:
+https://github.com/Kohze/ORFJava
+
