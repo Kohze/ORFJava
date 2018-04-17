@@ -13,8 +13,7 @@ import java.awt.event.ActionListener;
 *@Version 0.25 17-04-2018
 *Description: Reads sequence containing .txt file with path input and stores it within an ArrayList of OpenReadingFrame objects
 *Properties : path, minORFLength,maxORFLength
-*Methods    : getORFArray(); getORFStatistics(); returnORFCollection(); returnBasePairs(); exportORFCollection();
-*			  printSorted();
+*Methods    : getORFArray(); getORFStatistics(); returnORFCollection(); returnBasePairs(); exportORFCollection(); printSorted();
 */
 public class ORFCollector {
     String path, header, aaSeq, fullSequence, line, regexPattern;
@@ -41,13 +40,13 @@ public class ORFCollector {
 
         //regExpression for the ORF region matching.
         Pattern checkRegex = Pattern.compile(regexPattern);
-		Matcher regexMatcher = checkRegex.matcher(fullSequence);
-		while (regexMatcher.find()){
-			if (regexMatcher.group().length() != 0){
+		    Matcher regexMatcher = checkRegex.matcher(fullSequence);
+		    while (regexMatcher.find()){
+			   if (regexMatcher.group().length() != 0){
 				OpenReadingFrame ORFobject  = new OpenReadingFrame(regexMatcher.group(), regexMatcher.start(), regexMatcher.end());
 				//adding Open Reading Frame objects to arrayList "ORFCollection"
 				ORFCollection.add(ORFobject);
-			}
+			 }
 		}
         this.ORFCollection = ORFCollection;  
       } catch (FileNotFoundException e){
